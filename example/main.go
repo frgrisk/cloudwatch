@@ -10,8 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/google/uuid"
 	"github.com/hskiba/cloudwatch"
-	"github.com/pborman/uuid"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 
 	g := cloudwatch.NewGroup("github.com/hskiba/cloudwatch", cloudwatchlogs.NewFromConfig(cfg))
 
-	stream := uuid.New()
+	stream := uuid.New().String()
 
 	w, err := g.Create(stream)
 	if err != nil {
