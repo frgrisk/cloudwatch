@@ -1,10 +1,11 @@
 package cloudwatch
 
 import (
+	"context"
 	"io"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 )
 
 // Throttling and limits from http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/cloudwatch_limits.html
@@ -22,32 +23,34 @@ var now = time.Now
 
 // client duck types the aws sdk client for testing.
 type client interface {
-	PutLogEvents(*cloudwatchlogs.PutLogEventsInput) (*cloudwatchlogs.PutLogEventsOutput, error)
-	CreateLogStream(*cloudwatchlogs.CreateLogStreamInput) (*cloudwatchlogs.CreateLogStreamOutput, error)
-	GetLogEvents(*cloudwatchlogs.GetLogEventsInput) (*cloudwatchlogs.GetLogEventsOutput, error)
+	PutLogEvents(context.Context, *cloudwatchlogs.PutLogEventsInput, ...func(options *cloudwatchlogs.Options)) (*cloudwatchlogs.PutLogEventsOutput, error)
+	CreateLogStream(context.Context, *cloudwatchlogs.CreateLogStreamInput, ...func(options *cloudwatchlogs.Options)) (*cloudwatchlogs.CreateLogStreamOutput, error)
+	GetLogEvents(context.Context, *cloudwatchlogs.GetLogEventsInput, ...func(options *cloudwatchlogs.Options)) (*cloudwatchlogs.GetLogEventsOutput, error)
 }
 
 // Group wraps a log stream group and provides factory methods for creating
 // readers and writers for streams.
 type Group struct {
 	group  string
-	client *cloudwatchlogs.CloudWatchLogs
+	client cloudwatchlogs.Client
 }
 
 // NewGroup returns a new Group instance.
-func NewGroup(group string, client *cloudwatchlogs.CloudWatchLogs) *Group {
-	return &Group{
+func NewGroup(group string, client *cloudwatchlogs.Client) Group {
+	return Group{
 		group:  group,
-		client: client,
+		client: *client,
 	}
 }
 
 // Create creates a log stream in the group and returns an io.Writer for it.
-func (g *Group) Create(stream string) (io.Writer, error) {
-	if _, err := g.client.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
-		LogGroupName:  &g.group,
-		LogStreamName: &stream,
-	}); err != nil {
+func (g Group) Create(stream string) (io.Writer, error) {
+	if _, err := g.client.CreateLogStream(
+		context.TODO(),
+		&cloudwatchlogs.CreateLogStreamInput{
+			LogGroupName:  &g.group,
+			LogStreamName: &stream,
+		}); err != nil {
 		return nil, err
 	}
 

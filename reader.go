@@ -2,11 +2,12 @@ package cloudwatch
 
 import (
 	"bytes"
+	"context"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 )
 
 // Reader is an io.Reader implementation that streams log lines from cloudwatch
@@ -25,8 +26,8 @@ type Reader struct {
 	err error
 }
 
-func NewReader(group, stream string, client *cloudwatchlogs.CloudWatchLogs) *Reader {
-	return newReader(group, stream, client)
+func NewReader(group, stream string, client cloudwatchlogs.Client) *Reader {
+	return newReader(group, stream, &client)
 }
 
 func newReader(group, stream string, client client) *Reader {
@@ -58,7 +59,7 @@ func (r *Reader) read() error {
 		NextToken:     r.nextToken,
 	}
 
-	resp, err := r.client.GetLogEvents(params)
+	resp, err := r.client.GetLogEvents(context.TODO(), params)
 
 	if err != nil {
 		return err

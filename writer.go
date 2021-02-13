@@ -3,17 +3,19 @@ package cloudwatch
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 )
 
 type RejectedLogEventsInfoError struct {
-	Info *cloudwatchlogs.RejectedLogEventsInfo
+	Info types.RejectedLogEventsInfo
 }
 
 func (e *RejectedLogEventsInfoError) Error() string {
@@ -37,11 +39,11 @@ type Writer struct {
 	sync.Mutex // This protects calls to flush.
 }
 
-func NewWriter(group, stream string, client *cloudwatchlogs.CloudWatchLogs) *Writer {
+func NewWriter(group, stream string, client cloudwatchlogs.Client) *Writer {
 	w := &Writer{
 		group:    aws.String(group),
 		stream:   aws.String(stream),
-		client:   client,
+		client:   &client,
 		throttle: time.Tick(writeThrottle),
 	}
 	go w.start() // start flushing
@@ -62,7 +64,7 @@ func (w *Writer) Write(b []byte) (int, error) {
 	return w.buffer(b)
 }
 
-// starts continously flushing the buffered events.
+// starts continuously flushing the buffered events.
 func (w *Writer) start() error {
 	for {
 		// Exit if the stream is closed.
@@ -102,19 +104,21 @@ func (w *Writer) Flush() error {
 
 // flush flashes a slice of log events. This method should be called
 // sequentially to ensure that the sequence token is updated properly.
-func (w *Writer) flush(events []*cloudwatchlogs.InputLogEvent) error {
-	resp, err := w.client.PutLogEvents(&cloudwatchlogs.PutLogEventsInput{
-		LogEvents:     events,
-		LogGroupName:  w.group,
-		LogStreamName: w.stream,
-		SequenceToken: w.sequenceToken,
-	})
+func (w *Writer) flush(events []types.InputLogEvent) error {
+	resp, err := w.client.PutLogEvents(
+		context.TODO(),
+		&cloudwatchlogs.PutLogEventsInput{
+			LogEvents:     events,
+			LogGroupName:  w.group,
+			LogStreamName: w.stream,
+			SequenceToken: w.sequenceToken,
+		})
 	if err != nil {
 		return err
 	}
 
 	if resp.RejectedLogEventsInfo != nil {
-		w.err = &RejectedLogEventsInfoError{Info: resp.RejectedLogEventsInfo}
+		w.err = &RejectedLogEventsInfoError{Info: *resp.RejectedLogEventsInfo}
 		return w.err
 	}
 
@@ -147,7 +151,7 @@ func (w *Writer) buffer(b []byte) (int, error) {
 			continue
 		}
 
-		w.events.add(&cloudwatchlogs.InputLogEvent{
+		w.events.add(types.InputLogEvent{
 			Message:   aws.String(string(b)),
 			Timestamp: aws.Int64(now().UnixNano() / 1000000),
 		})
@@ -162,17 +166,17 @@ func (w *Writer) buffer(b []byte) (int, error) {
 // mutex.
 type eventsBuffer struct {
 	sync.Mutex
-	events []*cloudwatchlogs.InputLogEvent
+	events []types.InputLogEvent
 }
 
-func (b *eventsBuffer) add(event *cloudwatchlogs.InputLogEvent) {
+func (b *eventsBuffer) add(event types.InputLogEvent) {
 	b.Lock()
 	defer b.Unlock()
 
 	b.events = append(b.events, event)
 }
 
-func (b *eventsBuffer) drain() []*cloudwatchlogs.InputLogEvent {
+func (b *eventsBuffer) drain() []types.InputLogEvent {
 	b.Lock()
 	defer b.Unlock()
 
