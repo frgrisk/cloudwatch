@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -105,6 +106,9 @@ func (w *Writer) Flush() error {
 // flush flashes a slice of log events. This method should be called
 // sequentially to ensure that the sequence token is updated properly.
 func (w *Writer) flush(events []types.InputLogEvent) error {
+	sort.Slice(events, func(i, j int) bool {
+		return *events[i].Timestamp < *events[j].Timestamp
+	})
 	resp, err := w.client.PutLogEvents(
 		context.TODO(),
 		&cloudwatchlogs.PutLogEventsInput{
