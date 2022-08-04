@@ -1,4 +1,4 @@
-module github.com/hskiba/cloudwatch
+module github.com/frgrisk/cloudwatch
 
 go 1.16
 
