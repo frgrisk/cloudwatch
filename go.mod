@@ -8,6 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.15.11
 	github.com/google/uuid v1.3.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.0.0-20220803195053-6e608f9ce704 // indirect
 )
